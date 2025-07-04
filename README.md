@@ -1,3 +1,7 @@
+### Ссылка на видео: 
+- https://drive.google.com/file/d/153_ZIs6Ua4TO1R2aD4H2Rcw9a4edxwON/view?usp=sharing
+
+
 # ETL Pipeline with Airflow, PostgreSQL and Docker
 Архитектура проекта:
 - ![image](https://github.com/user-attachments/assets/9bea80a6-82fe-429a-8097-5268b32e545c)
