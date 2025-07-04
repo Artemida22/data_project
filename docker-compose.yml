@@ -1,0 +1,90 @@
+version: '3.8'
+services:
+  # ============== PostgreSQL ==============
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============== Apache Spark ==============
+  spark-master:
+    image: bitnami/spark:3.3
+    container_name: spark-master
+    ports:
+      - "8080:8080"   # Web UI
+      - "7077:7077"   # Master port
+    environment:
+      - SPARK_MODE=master
+
+  spark-worker:
+    image: bitnami/spark:3.3
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=2g
+
+  # ============== Apache Airflow ==============
+  airflow-webserver:
+    image: apache/airflow:2.6.1
+    restart: always
+    depends_on:
+      - postgres
+      - spark-master
+    volumes:
+      - ./data:/data
+      - ./dags:/opt/airflow/dags
+      - ./spark_data:/spark_data
+      - ./requirements.txt:/requirements.txt
+      - /etc/localtime:/etc/localtime:ro  # Важно!
+      - /etc/timezone:/etc/timezone:ro    # Важно!
+    ports:
+      - "8081:8080"
+    environment:
+      AIRFLOW__WEBSERVER__SECRET_KEY: "WjhDo6bYyJUNOHl/TzZmpw=="  # Используйте ДВОЙНЫЕ кавычки!
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      TZ: Europe/Moscow  # Укажите ваш часовой пояс
+    command: >
+      bash -c "
+        pip install --upgrade pip &&
+        pip install --no-cache-dir -r /requirements.txt &&
+        airflow webserver
+      "
+
+  airflow-scheduler:
+    image: apache/airflow:2.6.1
+    restart: always
+    depends_on:
+      - airflow-webserver
+    volumes:
+      - ./data:/data
+      - ./dags:/opt/airflow/dags
+      - ./spark_data:/spark_data
+      - ./requirements.txt:/requirements.txt
+      - /etc/localtime:/etc/localtime:ro  # Важно!
+      - /etc/timezone:/etc/timezone:ro    # Важно!
+    environment:
+      AIRFLOW__WEBSERVER__SECRET_KEY: "WjhDo6bYyJUNOHl/TzZmpw=="  # Тот же ключ в двойных кавычках
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      TZ: Europe/Moscow  # Тот же часовой пояс
+    command: >
+      bash -c "
+        pip install --upgrade pip &&
+        pip install --no-cache-dir -r /requirements.txt &&
+        airflow scheduler
+      "
